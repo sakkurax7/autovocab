@@ -1,76 +1,85 @@
-% autovocab.sty
-%
-% Automatic vocabulary collection + hyperlink system
-%
-% Usage:
-%   \usepackage{autovocab}
-%   \vocab{word}
-%   \printvocab
-
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{autovocab}[2026/05/25 Automatic vocabulary indexing]
 
-% Packages
 
+% Packages
 \RequirePackage{xparse}
 \RequirePackage{hyperref}
 \RequirePackage{multicol}
-\RequirePackage{datatool}
-\RequirePackage{etoolbox}
 
-% Database
-\DTLnewdb{autovocabdb}
+
+% Expl3 setup
+\ExplSyntaxOn
+
+% Sequence storing all vocab words
+\seq_new:N \g_autovocab_words_seq
+
+% Property list mapping word -> target
+\prop_new:N \g_autovocab_targets_prop
 
 % Counter
-\newcounter{autovocabcounter}
+\int_new:N \g_autovocab_counter_int
 
 % Main vocab command
-\makeatletter
-
-\NewDocumentCommand{\vocab}{m}{
-    \@ifundefined{autovocab@#1}{
-        % Mark word as already used
-        \expandafter\gdef\csname autovocab@#1\endcsname{1}
+\NewDocumentCommand{\vocab}{m}
+{
+    % If word not already registered
+    \prop_if_in:NnF \g_autovocab_targets_prop {#1}
+    {
+        % Increment counter
+        \int_gincr:N \g_autovocab_counter_int
 
         % Create unique target
-        \stepcounter{autovocabcounter}
-        \edef\autovocabtarget{autovocab-\theautovocabcounter}
+        \edef\autovocabtarget
+        {
+            autovocab-\int_use:N \g_autovocab_counter_int
+        }
 
-        % Print bold linked word
-        \hypertarget{\autovocabtarget}{\textbf{#1}}
+        % Store word
+        \seq_gput_right:Nn \g_autovocab_words_seq {#1}
 
-        % Store in database
-        \DTLnewrow{autovocabdb}
-        \DTLnewdbentry{autovocabdb}{word}{#1}
-        \DTLnewdbentry{autovocabdb}{target}{\autovocabtarget}
-
-    }{
-        % Later appearances
-        \textbf{#1}
+        % Store target mapping
+        \prop_gput:Nnx \g_autovocab_targets_prop
+            {#1}
+            {\autovocabtarget}
     }
+
+    % Retrieve target
+    \prop_get:NnN \g_autovocab_targets_prop {#1} \l_tmpa_tl
+
+    % Print bold word with anchor
+    \hypertarget{\l_tmpa_tl}{\textbf{#1}}
 }
 
-\makeatother
 
-% Vocabulary printing command
-\NewDocumentCommand{\printvocab}{ O{3} }{
-
-    % Sort alphabetically
-    \DTLsort{word}{autovocabdb}
-
+% Print vocabulary
+\NewDocumentCommand{\printvocab}{O{3}}
+{
     \section*{Vocabulary}
 
     \small
 
-    \begin{multicols}{#1}
-
-    \begin{list}{}{}
-
-    \DTLforeach{autovocabdb}{\theword=word,\thetarget=target}{
-        \item[] \hyperlink{\thetarget}{\theword}
+    % Sort alphabetically
+    \seq_gsort:Nn \g_autovocab_words_seq
+    {
+        \str_compare:eNeTF {##1} < {##2}
+            \sort_return_same:
+            \sort_return_swapped:
     }
 
-    \end{list}
+    \begin{multicols}{#1}
+    \raggedright
+
+    \seq_map_inline:Nn \g_autovocab_words_seq
+    {
+        \prop_get:NnN \g_autovocab_targets_prop {##1} \l_tmpa_tl
+
+        \noindent
+        \hyperlink{\l_tmpa_tl}{##1}
+        \par
+    }
 
     \end{multicols}
 }
+
+\ExplSyntaxOff
