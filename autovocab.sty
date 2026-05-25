@@ -1,0 +1,76 @@
+% autovocab.sty
+%
+% Automatic vocabulary collection + hyperlink system
+%
+% Usage:
+%   \usepackage{autovocab}
+%   \vocab{word}
+%   \printvocab
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{autovocab}[2026/05/25 Automatic vocabulary indexing]
+
+% Packages
+
+\RequirePackage{xparse}
+\RequirePackage{hyperref}
+\RequirePackage{multicol}
+\RequirePackage{datatool}
+\RequirePackage{etoolbox}
+
+% Database
+\DTLnewdb{autovocabdb}
+
+% Counter
+\newcounter{autovocabcounter}
+
+% Main vocab command
+\makeatletter
+
+\NewDocumentCommand{\vocab}{m}{
+    \@ifundefined{autovocab@#1}{
+        % Mark word as already used
+        \expandafter\gdef\csname autovocab@#1\endcsname{1}
+
+        % Create unique target
+        \stepcounter{autovocabcounter}
+        \edef\autovocabtarget{autovocab-\theautovocabcounter}
+
+        % Print bold linked word
+        \hypertarget{\autovocabtarget}{\textbf{#1}}
+
+        % Store in database
+        \DTLnewrow{autovocabdb}
+        \DTLnewdbentry{autovocabdb}{word}{#1}
+        \DTLnewdbentry{autovocabdb}{target}{\autovocabtarget}
+
+    }{
+        % Later appearances
+        \textbf{#1}
+    }
+}
+
+\makeatother
+
+% Vocabulary printing command
+\NewDocumentCommand{\printvocab}{ O{3} }{
+
+    % Sort alphabetically
+    \DTLsort{word}{autovocabdb}
+
+    \section*{Vocabulary}
+
+    \small
+
+    \begin{multicols}{#1}
+
+    \begin{list}{}{}
+
+    \DTLforeach{autovocabdb}{\theword=word,\thetarget=target}{
+        \item[] \hyperlink{\thetarget}{\theword}
+    }
+
+    \end{list}
+
+    \end{multicols}
+}
